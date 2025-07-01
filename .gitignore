@@ -1,6 +1,18 @@
+# Python and cache
 __pycache__/
-.env
-venv/
-.idea/
 *.pyc
 *.log
+
+# Environments
+.env
+venv/
+
+# PyCharm project files
+.idea/
+
+# Firebase credentials
+app/firebase/serviceAccountKey.json
+
+# OS-specific
+.DS_Store
+Thumbs.db
