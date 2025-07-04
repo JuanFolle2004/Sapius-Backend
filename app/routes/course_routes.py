@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from app.models.course import Course
 from app.firebase.firebase_config import db
 from datetime import datetime
+from google.cloud import firestore  # Needed for ArrayUnion
+
 
 router = APIRouter()
 
@@ -21,6 +23,8 @@ def create_course(course: Course):
             folder_ref.update({
                 "courseIds": firestore.ArrayUnion([course.id])
             })
+        else:
+            raise HTTPException(status_code=404, detail="Folder not found")
 
     return {"message": "Course created successfully"}
 

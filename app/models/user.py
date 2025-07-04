@@ -1,20 +1,18 @@
-from pydantic import BaseModel, EmailStr
-from typing import List, Dict
-from datetime import datetime, date
+from pydantic import BaseModel, EmailStr, constr
+from datetime import date
 
 class CourseProgress(BaseModel):
-    completedGames: List[int]
-    lastAccessed: datetime
-
-class User(BaseModel):
-    id: str
-    email: EmailStr
-    birth_date: date  # 👈 NEW FIELD
-    recentTopics: List[str]
-    progress: Dict[str, CourseProgress]  # courseId -> progress
+    completedGames: list[int]
+    lastAccessed: str  # ISO datetime
 
 class UserCreate(BaseModel):
     email: EmailStr
+    name: str
+    lastname: str
+    password: str
+    phone: constr(min_length=6, max_length=20)
     birthDate: date
-    recentTopics: List[str] = []
 
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
