@@ -18,7 +18,7 @@ def create_folder(folder: FolderCreate, current_user: User = Depends(get_current
         "description": folder.description,
         "createdBy": current_user.id,
         "createdAt": datetime.utcnow(),
-        "courseIds": folder.courseIds
+        "gameIds": []
     }
 
     db.collection("folders").document(folder_id).set(folder_data)

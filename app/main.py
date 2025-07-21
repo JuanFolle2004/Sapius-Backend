@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from app.routes.user_routes import router as user_router
 from app.routes.folder_routes import router as folder_router
-from app.routes.course_routes import router as course_router
 from app.firebase.firebase_config import db
+from app.routes.game_routes import router as game_router
+from app.routes.folder_with_games import router as folder_with_games_router
 
 app = FastAPI()
 
@@ -20,7 +21,8 @@ app.add_middleware(
 # Include routes
 app.include_router(user_router, prefix="/users", tags=["Users"])
 app.include_router(folder_router, prefix="/folders", tags=["Folders"])
-app.include_router(course_router, prefix="/courses", tags=["Courses"])
+app.include_router(game_router)
+app.include_router(folder_with_games_router)
 
 # Test endpoints
 @app.get("/")

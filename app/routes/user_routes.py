@@ -1,21 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from app.models.user_model import User
-from app.models.user import UserCreate, UserLogin
+from app.models.user import UserCreate
 from app.firebase.firebase_config import db
 from uuid import uuid4
 from datetime import date
-from passlib.context import CryptContext
-from app.utils.auth import create_access_token
-from fastapi.security import OAuth2PasswordRequestForm
+from app.utils.auth import hash_password, verify_password, create_access_token
 
-router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("", response_model=User)
 def create_user(user: UserCreate):
@@ -26,7 +18,7 @@ def create_user(user: UserCreate):
         raise HTTPException(status_code=400, detail="Invalid birth date")
 
     user_id = str(uuid4())
-    hashed_password = hash_password(user.password)
+    hashed = hash_password(user.password)
 
     user_dict = {
         "id": user_id,
@@ -37,10 +29,10 @@ def create_user(user: UserCreate):
         "birth_date": user.birthDate.isoformat(),
         "recentTopics": [],
         "progress": {},
-        "hashed_password": hashed_password,
+        "hashed_password": hashed,
     }
-    db.collection("users").document(user_id).set(user_dict)
 
+    db.collection("users").document(user_id).set(user_dict)
     return User(**user_dict)
 
 @router.post("/login")
@@ -57,5 +49,4 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = create_access_token({"sub": user_data["id"]})
-
     return {"access_token": token, "token_type": "bearer"}
