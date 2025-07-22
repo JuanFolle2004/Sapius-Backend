@@ -7,9 +7,9 @@ from uuid import uuid4
 from datetime import date
 from app.utils.auth import hash_password, verify_password, create_access_token
 
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter()
 
-@router.post("", response_model=User)
+@router.post("/register", response_model=User)
 def create_user(user: UserCreate):
     if db.collection("users").where("email", "==", user.email).get():
         raise HTTPException(status_code=400, detail="Email already registered")

@@ -21,7 +21,7 @@ app.add_middleware(
 # Include routes
 app.include_router(user_router, prefix="/users", tags=["Users"])
 app.include_router(folder_router, prefix="/folders", tags=["Folders"])
-app.include_router(game_router)
+app.include_router(game_router, prefix="/games", tags=["Games"])
 app.include_router(folder_with_games_router)
 
 # Test endpoints

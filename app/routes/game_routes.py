@@ -62,6 +62,16 @@ def list_games(current_user: User = Depends(get_current_user)):
     return [Game(**doc.to_dict()) for doc in query]
 
 
+@router.get("/{game_id}", response_model=Game)
+def get_game_by_id(game_id: str, user: dict = Depends(get_current_user)):
+    doc = db.collection("games").document(game_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    data = doc.to_dict()
+    data["id"] = doc.id
+    return Game(**data)
+
 @router.get("/folder/{folder_id}", response_model=List[Game])
 def get_games_by_folder(folder_id: str, current_user: User = Depends(get_current_user)):
     folder_ref = db.collection("folders").document(folder_id).get()
@@ -73,4 +83,13 @@ def get_games_by_folder(folder_id: str, current_user: User = Depends(get_current
         raise HTTPException(status_code=403, detail="Not authorized to view this folder's games")
 
     query = db.collection("games").where("folderId", "==", folder_id).where("createdBy", "==", current_user.id).stream()
-    return [Game(**doc.to_dict()) for doc in query]
+    games = []
+    for doc in query:
+        data = doc.to_dict()
+        data["docId"] = doc.id
+        games.append(data)
+    return games
+
+
+
+
