@@ -47,7 +47,7 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o",  # or "gpt-3.5-turbo" if cheaper
+            model="gpt-4",  # or "gpt-3.5-turbo" if cheaper
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -94,32 +94,30 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
         saved_games.append(game_data)
 
     return {"games": saved_games}
-
 @router.post("/ai/generate-from-folder/{folder_id}", response_model=list[Game])
 def generate_from_existing_folder(folder_id: str, user: User = Depends(get_current_user)):
-    folder_ref = db.collection("folders").document(folder_id).get()
-    if not folder_ref.exists:
+    folder_snapshot = db.collection("folders").document(folder_id).get()
+    if not folder_snapshot.exists:
         raise HTTPException(status_code=404, detail="Folder not found")
 
-    folder = folder_ref.to_dict()
+    folder = folder_snapshot.to_dict()
     if folder["createdBy"] != user.id:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
-    print("✅ Folder contents:", folder)  # 👈 ADD THIS LINE
+    prompt = folder.get("prompt", "General knowledge")
+    try:
+        generated = generate_games_from_prompt(prompt)
+    except Exception as e:
+        print("❌ Error during game generation:", e)
+        raise HTTPException(status_code=500, detail="Failed to generate games from AI")
 
-    prompt = folder.get("prompt", "Generate general knowledge questions")
-
-    print("🧠 Using prompt:", prompt)  # 👈 ADD THIS LINE
-
-    generated = generate_games_from_prompt(prompt)
-
-    created_games = []
+    games = []
     for g in generated:
         game_id = str(uuid4())
         game_data = {
             "id": game_id,
             "folderId": folder_id,
-            "title": g["title"],
+            "title": g["question"][:30],
             "question": g["question"],
             "options": g["options"],
             "correctAnswer": g["correctAnswer"],
@@ -132,6 +130,9 @@ def generate_from_existing_folder(folder_id: str, user: User = Depends(get_curre
         db.collection("folders").document(folder_id).update({
             "gameIds": firestore.ArrayUnion([game_id])
         })
-        created_games.append(Game(**game_data))
+        games.append(Game(**game_data))
 
-    return created_games
+    return games
+
+
+

@@ -1,13 +1,14 @@
 import os
+import json
 from dotenv import load_dotenv
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
-# ✅ Load .env from Back/.env (2 levels up from generation.py)
+# Load .env manually (adjust path as needed)
 env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 load_dotenv(dotenv_path=env_path)
 
-from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 
 def generate_games_from_prompt(prompt: str, count: int = 3):
     system_prompt = (
@@ -22,21 +23,26 @@ def generate_games_from_prompt(prompt: str, count: int = 3):
 
     user_prompt = f"Topic: {prompt}"
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.7
-    )
+    messages: list[ChatCompletionMessageParam] = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=messages,
+            temperature=0.7,
+        )
+    except Exception as e:
+        print("❌ OpenAI API error:", e)
+        raise
 
     content = response.choices[0].message.content.strip()
-
-    print("🧠 Raw AI response:", content)  # 👈 Log what GPT sends back
+    print("🤖 Raw GPT response:", content)
 
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        print("❌ Failed to decode AI response:", content)
+        print("❌ Failed to decode GPT response.")
         return []

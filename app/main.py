@@ -8,6 +8,14 @@ from app.routes.game_routes import router as game_router
 from app.routes.folder_with_games import router as folder_with_games_router
 from app.routes.ai_routes import router as ai_router
 from dotenv import load_dotenv
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+
 load_dotenv()
 
 
