@@ -6,6 +6,10 @@ from app.routes.folder_routes import router as folder_router
 from app.firebase.firebase_config import db
 from app.routes.game_routes import router as game_router
 from app.routes.folder_with_games import router as folder_with_games_router
+from app.routes.ai_routes import router as ai_router
+from dotenv import load_dotenv
+load_dotenv()
+
 
 app = FastAPI()
 
@@ -23,6 +27,7 @@ app.include_router(user_router, prefix="/users", tags=["Users"])
 app.include_router(folder_router, prefix="/folders", tags=["Folders"])
 app.include_router(game_router, prefix="/games", tags=["Games"])
 app.include_router(folder_with_games_router)
+app.include_router(ai_router)
 
 # Test endpoints
 @app.get("/")

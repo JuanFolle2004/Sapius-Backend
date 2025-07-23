@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import List
 from pydantic import BaseModel
 from google.cloud import firestore
+from google.cloud.firestore_v1 import DocumentSnapshot
 
 router = APIRouter(prefix="/games", tags=["Games"])
 
@@ -63,14 +64,34 @@ def list_games(current_user: User = Depends(get_current_user)):
 
 
 @router.get("/{game_id}", response_model=Game)
-def get_game_by_id(game_id: str, user: dict = Depends(get_current_user)):
-    doc = db.collection("games").document(game_id).get()
-    if not doc.exists:
-        raise HTTPException(status_code=404, detail="Game not found")
+def get_game_by_id(game_id: str, user: User = Depends(get_current_user)):
+    try:
+        doc = db.collection("games").document(game_id).get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Game not found")
 
-    data = doc.to_dict()
-    data["id"] = doc.id
-    return Game(**data)
+        data = doc.to_dict()
+        print("🔥 Raw game data from Firestore:", data)  # 👈 ADD THIS
+
+        if data["createdBy"] != user.id:
+            raise HTTPException(status_code=403, detail="Unauthorized")
+
+        data["id"] = doc.id
+
+        # Safely convert Firestore timestamp or string
+        if "createdAt" in data:
+            if hasattr(data["createdAt"], "to_datetime"):
+                data["createdAt"] = data["createdAt"].to_datetime()
+            elif isinstance(data["createdAt"], str):
+                from datetime import datetime
+                data["createdAt"] = datetime.fromisoformat(data["createdAt"])
+
+        return Game(**data)
+
+    except Exception as e:
+        print("❌ Error in get_game_by_id:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/folder/{folder_id}", response_model=List[Game])
 def get_games_by_folder(folder_id: str, current_user: User = Depends(get_current_user)):
