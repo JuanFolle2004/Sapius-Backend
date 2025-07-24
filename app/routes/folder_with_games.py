@@ -16,17 +16,18 @@ def get_folder_with_games(folder_id: str, current_user: dict = Depends(get_curre
 
     folder_data = folder_doc.to_dict()
 
-    # Get full game objects
-    game_ids = folder_data.get("gameIds", [])
+    # 🔁 Instead of using gameIds, query all games by folderId
+    game_query = db.collection("games").where("folderId", "==", folder_id)
+    game_docs = game_query.stream()
+
     games = []
-    for gid in game_ids:
-        game_doc = db.collection("games").document(gid).get()
-        if game_doc.exists:
-            game = game_doc.to_dict()
-            game["id"] = game_doc.id  # ensure ID is included
-            games.append(game)
+    for doc in game_docs:
+        game = doc.to_dict()
+        game["id"] = doc.id  # Ensure ID is included
+        games.append(game)
 
     return {
         "folder": folder_data,
         "games": games
     }
+

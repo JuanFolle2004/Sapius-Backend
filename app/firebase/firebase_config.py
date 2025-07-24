@@ -2,13 +2,20 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import os
 
-# Get the full path to the serviceAccountKey.json
+# Full path to service account key
 cred_path = os.path.join(os.path.dirname(__file__), "serviceAccountKey.json")
 
-# Initialize Firebase app (only once)
-if not firebase_admin._apps:
-    cred = credentials.Certificate(cred_path)
-    firebase_admin.initialize_app(cred)
+print(f"🔍 Looking for serviceAccountKey.json at: {cred_path}")
+print(f"🔍 File exists? {os.path.exists(cred_path)}")
 
-# Create a Firestore client
+# Initialize only once
+if not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred)
+        print("✅ Firebase initialized successfully.")
+    except Exception as e:
+        print("❌ Firebase initialization failed:", e)
+
+# Create Firestore client
 db = firestore.client()
