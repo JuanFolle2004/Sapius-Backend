@@ -71,14 +71,13 @@ def get_game_by_id(game_id: str, user: User = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="Game not found")
 
         data = doc.to_dict()
-        print("🔥 Raw game data from Firestore:", data)  # 👈 ADD THIS
+        print("🔥 Raw game data from Firestore:", data)
 
         if data["createdBy"] != user.id:
             raise HTTPException(status_code=403, detail="Unauthorized")
 
         data["id"] = doc.id
 
-        # Safely convert Firestore timestamp or string
         if "createdAt" in data:
             if hasattr(data["createdAt"], "to_datetime"):
                 data["createdAt"] = data["createdAt"].to_datetime()
@@ -88,9 +87,12 @@ def get_game_by_id(game_id: str, user: User = Depends(get_current_user)):
 
         return Game(**data)
 
+    except HTTPException as http_exc:
+        raise http_exc  # ✅ preserve 403/404
     except Exception as e:
         print("❌ Error in get_game_by_id:", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 
 
 @router.get("/folder/{folder_id}", response_model=List[Game])

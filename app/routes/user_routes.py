@@ -48,5 +48,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if not verify_password(form_data.password, user_data["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token({"sub": user_data["id"]})
+    token = create_access_token({
+        "sub": user_data["id"],
+        "email": user_data["email"],
+        "name": user_data["name"],
+        "lastName": user_data["lastname"]
+    })
+
     return {"access_token": token, "token_type": "bearer"}
+
