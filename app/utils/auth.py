@@ -30,6 +30,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
     )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -42,4 +43,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     if not user_doc.exists:
         raise credentials_exception
 
-    return User(**user_doc.to_dict())
+    user_data = user_doc.to_dict()
+    user_data["id"] = user_id  # ✅ inject the ID from Firestore doc ID
+    return User(**user_data)
+

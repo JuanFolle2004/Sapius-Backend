@@ -73,6 +73,9 @@ def get_game_by_id(game_id: str, user: User = Depends(get_current_user)):
         data = doc.to_dict()
         print("🔥 Raw game data from Firestore:", data)
 
+        print("🔐 Requesting user ID:", user.id)
+        print("🆔 Game createdBy ID:", data["createdBy"])
+
         if data["createdBy"] != user.id:
             raise HTTPException(status_code=403, detail="Unauthorized")
 

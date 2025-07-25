@@ -11,6 +11,8 @@ router = APIRouter()
 
 @router.post("/register", response_model=User)
 def create_user(user: UserCreate):
+    print("✅ Reached backend register route")
+    print("📥 Incoming user data:", user.dict())
     if db.collection("users").where("email", "==", user.email).get():
         raise HTTPException(status_code=400, detail="Email already registered")
 

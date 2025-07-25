@@ -94,7 +94,7 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
         saved_games.append(game_data)
 
     return {"games": saved_games}
-@router.post("/ai/generate-from-folder/{folder_id}", response_model=list[Game])
+@router.post("/generate-from-folder/{folder_id}", response_model=list[Game])
 def generate_from_existing_folder(folder_id: str, user: User = Depends(get_current_user)):
     print("📥 Request received for folder:", folder_id)
 
