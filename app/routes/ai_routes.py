@@ -39,9 +39,11 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
         "- question: string\n"
         "- options: array of 4 strings\n"
         "- correctAnswer: one of the options\n"
-        "- explanation: string\n\n"
+        "- explanation: string\n"
+        "- topic: string (the category of the question, e.g. 'history', 'math', 'geography')\n\n"
         "Respond only with a JSON array of objects."
     )
+
 
     user_prompt = f"Topic: {data.prompt}"
 
@@ -80,7 +82,8 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
             "options": game["options"],
             "correctAnswer": game["correctAnswer"],
             "explanation": game["explanation"],
-            "title": game["question"][:30]
+            "title": game["question"][:30],
+            "topic": game.get("topic", data.prompt)
         }
 
         # Save to games collection
@@ -133,6 +136,7 @@ def generate_from_existing_folder(folder_id: str, user: User = Depends(get_curre
             "createdAt": datetime.utcnow(),
             "createdBy": user.id,
             "folderId": folder_id,
+            "topic": g.get("topic", prompt)
         }
 
         # Save to Firestore

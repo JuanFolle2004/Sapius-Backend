@@ -6,6 +6,7 @@ from app.utils.auth import get_current_user
 from typing import List
 from datetime import datetime
 from uuid import uuid4
+import random
 
 router = APIRouter(prefix="/folders", tags=["Folders"])
 
@@ -81,3 +82,43 @@ def get_folder_details(folder_id: str, current_user: User = Depends(get_current_
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     return Folder(**folder_data)
+
+# 🎲 GET /folders/random/with-games – Random folder with user-interest games
+@router.get("/random/with-games")
+def get_random_folder_with_games(current_user: User = Depends(get_current_user)):
+    if not current_user.interests or len(current_user.interests) == 0:
+        raise HTTPException(status_code=400, detail="User has no interests defined")
+
+    all_interest_games = []
+
+    # 🔎 fetch games for each interest
+    for interest in current_user.interests:
+        game_docs = db.collection("games")\
+            .where("topic", "==", interest)\
+            .limit(50)\
+            .stream()
+        for doc in game_docs:
+            game = doc.to_dict()
+            game["id"] = doc.id
+            all_interest_games.append(game)
+
+    if not all_interest_games:
+        raise HTTPException(status_code=404, detail="No games found for user interests")
+
+    # 🎲 Pick up to 10 random games
+    selected_games = random.sample(all_interest_games, min(10, len(all_interest_games)))
+
+    folder_data = {
+        "id": "random",
+        "title": "🎲 Random Quiz",
+        "description": "Random questions from your topics of interest",
+        "prompt": None,
+        "createdBy": "system",
+        "createdAt": datetime.utcnow(),
+        "gameIds": [g["id"] for g in selected_games],
+    }
+
+    return {
+        "folder": folder_data,
+        "games": selected_games
+    }

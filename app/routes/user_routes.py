@@ -32,6 +32,7 @@ def create_user(user: UserCreate):
         "recentTopics": [],
         "progress": {},
         "hashed_password": hashed,
+        "intrests": user.interests
     }
 
     db.collection("users").document(user_id).set(user_dict)

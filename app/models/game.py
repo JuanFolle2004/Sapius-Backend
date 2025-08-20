@@ -13,3 +13,4 @@ class Game(BaseModel):
     createdAt: datetime
     createdBy: str
     folderId: str
+    topic: str
