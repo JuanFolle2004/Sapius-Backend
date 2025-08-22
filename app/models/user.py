@@ -14,7 +14,7 @@ class UserCreate(BaseModel):
     phone: Optional[str] = Field(None, max_length=32)
     birthDate: date
     password: str = Field(..., min_length=8, max_length=256)
-    interests: list[str] = Field(..., min_items=5, max_items=5)
+    interests: list[str] = Field(default_factory=list)
 
     @field_validator("email")
     @classmethod
