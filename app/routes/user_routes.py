@@ -1,11 +1,19 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, Field
+from typing import List
+from uuid import uuid4
+from datetime import date
+
 from app.models.user_model import User
 from app.models.user import UserCreate
 from app.firebase.firebase_config import db
-from uuid import uuid4
-from datetime import date
-from app.utils.auth import hash_password, verify_password, create_access_token
+from app.utils.auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user
+)
 
 router = APIRouter()
 
@@ -32,7 +40,7 @@ def create_user(user: UserCreate):
         "recentTopics": [],
         "progress": {},
         "hashed_password": hashed,
-        "intrests": user.interests
+        "intrests": user.interests or [],
     }
 
     db.collection("users").document(user_id).set(user_dict)
@@ -60,31 +68,31 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
     return {"access_token": token, "token_type": "bearer"}
 
-    @router.get("/users/me", response_model=User)
-    def get_me(current_user: User = Depends(get_current_user)):
-        doc_ref = db.collection("users").document(current_user.id).get()
-        if not doc_ref.exists:
-            raise HTTPException(status_code=404, detail="User not found")
-        return User(**doc_ref.to_dict())
+@router.get("/users/me", response_model=User)
+def get_me(current_user: User = Depends(get_current_user)):
+    doc_ref = db.collection("users").document(current_user.id).get()
+    if not doc_ref.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    return User(**doc_ref.to_dict())
     
 
-    class InterestsUpdate(BaseModel):
-        interests: List[str] = Field(..., min_items=5, max_items=5)
+class InterestsUpdate(BaseModel):
+    interests: List[str] = Field(..., min_items=5, max_items=5)
 
-    @router.put("/users/me/interests", response_model=User)
-    def update_interests(
-        payload: InterestsUpdate,
-        current_user: User = Depends(get_current_user)
-    ):
-        user_id = current_user.id
-        doc_ref = db.collection("users").document(user_id)
+@router.put("/users/me/interests", response_model=User)
+def update_interests(
+    payload: InterestsUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    user_id = current_user.id
+    doc_ref = db.collection("users").document(user_id)
 
-        if not doc_ref.get().exists:
-            raise HTTPException(status_code=404, detail="User not found")
+    if not doc_ref.get().exists:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        # ✅ enforce exactly 5 interests
-        doc_ref.update({"interests": payload.interests})
+    # ✅ enforce exactly 5 interests
+    doc_ref.update({"interests": payload.interests})
 
-        updated_user = doc_ref.get().to_dict()
-        return User(**updated_user)
+    updated_user = doc_ref.get().to_dict()
+    return User(**updated_user)
 

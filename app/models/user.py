@@ -13,7 +13,7 @@ class UserCreate(BaseModel):
     lastname: str = Field(..., min_length=1, max_length=80)
     phone: Optional[str] = Field(None, max_length=32)
     birthDate: date
-    password: str = Field(..., min_length=8, max_length=256)
+    password: str = Field(..., min_length=1, max_length=256)
     interests: list[str] = Field(default_factory=list)
 
     @field_validator("email")

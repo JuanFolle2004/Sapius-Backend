@@ -1,16 +1,17 @@
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import List, Optional
 
 class Game(BaseModel):
     id: str
     order: int
+    title: str
     question: str
     options: List[str]
     correctAnswer: str
     explanation: str
-    title: str
     createdAt: datetime
     createdBy: str
-    folderId: str
+    folderId: Optional[str] = None
     topic: str
+    tags: List[str] = Field(default_factory=list)  
