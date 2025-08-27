@@ -13,5 +13,5 @@ class Game(BaseModel):
     createdAt: datetime
     createdBy: str
     folderId: Optional[str] = None
-    topic: str
+    topic: Optional[str] = None   # 👈 make optional
     tags: List[str] = Field(default_factory=list)  

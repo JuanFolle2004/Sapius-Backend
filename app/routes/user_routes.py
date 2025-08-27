@@ -21,6 +21,8 @@ router = APIRouter()
 def create_user(user: UserCreate):
     print("✅ Reached backend register route")
     print("📥 Incoming user data:", user.dict())
+
+    # check if email already exists
     if db.collection("users").where("email", "==", user.email).get():
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -73,8 +75,11 @@ def get_me(current_user: User = Depends(get_current_user)):
     doc_ref = db.collection("users").document(current_user.id).get()
     if not doc_ref.exists:
         raise HTTPException(status_code=404, detail="User not found")
-    return User(**doc_ref.to_dict())
-    
+    data = doc_ref.to_dict()
+    # ✅ ensure interests always present
+    if "interests" not in data:
+        data["interests"] = []
+    return User(**data)
 
 class InterestsUpdate(BaseModel):
     interests: List[str] = Field(..., min_items=5, max_items=5)
@@ -94,5 +99,6 @@ def update_interests(
     doc_ref.update({"interests": payload.interests})
 
     updated_user = doc_ref.get().to_dict()
+    if "interests" not in updated_user:
+        updated_user["interests"] = []
     return User(**updated_user)
-

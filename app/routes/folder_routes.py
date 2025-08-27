@@ -6,7 +6,6 @@ from app.utils.auth import get_current_user
 from typing import List
 from datetime import datetime
 from uuid import uuid4
-import random
 
 router = APIRouter(prefix="/folders", tags=["Folders"])
 
@@ -14,13 +13,15 @@ router = APIRouter(prefix="/folders", tags=["Folders"])
 @router.post("/", response_model=Folder)
 def create_folder(folder: FolderCreate, current_user: User = Depends(get_current_user)):
     folder_id = str(uuid4())
+    created_at = datetime.utcnow().isoformat()
+
     folder_data = {
         "id": folder_id,
         "title": folder.title,
         "description": folder.description,
         "prompt": folder.prompt,
         "createdBy": current_user.id,
-        "createdAt": datetime.utcnow(),
+        "createdAt": created_at,
         "gameIds": []
     }
 
@@ -36,6 +37,10 @@ def list_folders(current_user: User = Depends(get_current_user)):
     for doc in folders_ref:
         folder_data = doc.to_dict()
         folder_data["id"] = doc.id
+        # ensure createdAt is string
+        created_at = folder_data.get("createdAt")
+        if hasattr(created_at, "isoformat"):
+            folder_data["createdAt"] = created_at.isoformat()
         folders.append(Folder(**folder_data))
     return folders
 
@@ -49,19 +54,22 @@ def get_folder_with_games(folder_id: str, current_user: User = Depends(get_curre
     folder_data = folder_doc.to_dict()
     folder_data["id"] = folder_id
 
+    # enforce ownership
     if folder_data["createdBy"] != current_user.id:
         raise HTTPException(status_code=403, detail="Unauthorized")
 
-    game_docs = db.collection("games")\
-        .where("folderId", "==", folder_id)\
-        .where("createdBy", "==", current_user.id)\
-        .stream()
-
+    # get all games in this folder
+    game_docs = db.collection("games").where("folderId", "==", folder_id).stream()
     games = []
     for doc in game_docs:
         game = doc.to_dict()
         game["id"] = doc.id
         games.append(game)
+
+    # ensure createdAt is string
+    created_at = folder_data.get("createdAt")
+    if hasattr(created_at, "isoformat"):
+        folder_data["createdAt"] = created_at.isoformat()
 
     return {
         "folder": folder_data,
@@ -80,5 +88,9 @@ def get_folder_details(folder_id: str, current_user: User = Depends(get_current_
 
     if folder_data["createdBy"] != current_user.id:
         raise HTTPException(status_code=403, detail="Unauthorized")
+
+    created_at = folder_data.get("createdAt")
+    if hasattr(created_at, "isoformat"):
+        folder_data["createdAt"] = created_at.isoformat()
 
     return Folder(**folder_data)

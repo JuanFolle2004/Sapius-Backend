@@ -1,18 +1,17 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
 
 class FolderCreate(BaseModel):
     title: str
     description: str
-    prompt: Optional[str] = None                # ✅ added
+    prompt: Optional[str] = None
     gameIds: Optional[List[str]] = []
 
 class Folder(BaseModel):
     id: str
     title: str
     description: str
-    prompt: Optional[str] = None                # ✅ added
+    prompt: Optional[str] = None
     createdBy: str
-    createdAt: datetime
+    createdAt: str  # ✅ store as ISO string
     gameIds: List[str] = Field(default_factory=list)

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import date
-from typing import Optional
+from typing import Optional, List
 
 class CourseProgress(BaseModel):
     completedGames: list[int]
@@ -14,7 +14,7 @@ class UserCreate(BaseModel):
     phone: Optional[str] = Field(None, max_length=32)
     birthDate: date
     password: str = Field(..., min_length=1, max_length=256)
-    interests: list[str] = Field(default_factory=list)
+    interests: List[str] = Field(default_factory=list)
 
     @field_validator("email")
     @classmethod
