@@ -7,6 +7,7 @@ from app.firebase.firebase_config import db
 from app.routes.game_routes import router as game_router
 from app.routes.folder_with_games import router as folder_with_games_router
 from app.routes.ai_routes import router as ai_router
+from app.routes.dashboard_routes import router as dashboard_router
 from dotenv import load_dotenv
 import logging
 import sys
@@ -36,6 +37,7 @@ app.include_router(folder_router)
 app.include_router(game_router)
 app.include_router(folder_with_games_router)
 app.include_router(ai_router)
+app.include_router(dashboard_router)
 
 # Test endpoints
 @app.get("/")
