@@ -17,17 +17,25 @@ from app.utils.auth import (
 
 router = APIRouter()
 
+
+# ---------------------------
+# REGISTER
+# ---------------------------
 @router.post("/register", response_model=User)
 def create_user(user: UserCreate):
     print("✅ Reached backend register route")
     print("📥 Incoming user data:", user.dict())
 
     # check if email already exists
-    if db.collection("users").where("email", "==", user.email).get():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    existing_user = db.collection("users").where("email", "==", user.email).get()
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail={"field": "email", "msg": "Email already registered"}
+        )
 
-    if user.birthDate > date.today():
-        raise HTTPException(status_code=400, detail="Invalid birth date")
+    # NOTE: birthDate future check is already in UserCreate validator,
+    # so you don't need it here again.
 
     user_id = str(uuid4())
     hashed = hash_password(user.password)
@@ -38,7 +46,7 @@ def create_user(user: UserCreate):
         "name": user.name,
         "lastname": user.lastname,
         "phone": user.phone,
-        "birth_date": user.birthDate.isoformat(),
+        "birthDate": user.birthDate.isoformat(),   # ✅ match frontend naming
         "recentTopics": [],
         "progress": {},
         "hashed_password": hashed,
@@ -48,18 +56,28 @@ def create_user(user: UserCreate):
     db.collection("users").document(user_id).set(user_dict)
     return User(**user_dict)
 
+
+# ---------------------------
+# LOGIN
+# ---------------------------
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     query = db.collection("users").where("email", "==", form_data.username).limit(1).stream()
     user_doc = next(query, None)
 
     if not user_doc:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(
+            status_code=401,
+            detail={"field": "email", "msg": "Invalid email or password"}
+        )
 
     user_data = user_doc.to_dict()
 
     if not verify_password(form_data.password, user_data["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(
+            status_code=401,
+            detail={"field": "password", "msg": "Invalid email or password"}
+        )
 
     token = create_access_token({
         "sub": user_data["id"],
@@ -70,19 +88,32 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
     return {"access_token": token, "token_type": "bearer"}
 
+
+# ---------------------------
+# GET CURRENT USER
+# ---------------------------
 @router.get("/users/me", response_model=User)
 def get_me(current_user: User = Depends(get_current_user)):
     doc_ref = db.collection("users").document(current_user.id).get()
     if not doc_ref.exists:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(
+            status_code=404,
+            detail={"field": "user", "msg": "User not found"}
+        )
+
     data = doc_ref.to_dict()
     # ✅ ensure interests always present
     if "interests" not in data:
         data["interests"] = []
     return User(**data)
 
+
+# ---------------------------
+# UPDATE INTERESTS
+# ---------------------------
 class InterestsUpdate(BaseModel):
     interests: List[str] = Field(..., min_items=5, max_items=5)
+
 
 @router.put("/users/me/interests", response_model=User)
 def update_interests(
@@ -93,7 +124,10 @@ def update_interests(
     doc_ref = db.collection("users").document(user_id)
 
     if not doc_ref.get().exists:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(
+            status_code=404,
+            detail={"field": "user", "msg": "User not found"}
+        )
 
     # ✅ enforce exactly 5 interests
     doc_ref.update({"interests": payload.interests})

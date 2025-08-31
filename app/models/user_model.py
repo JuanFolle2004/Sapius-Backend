@@ -8,7 +8,7 @@ class User(BaseModel):
     name: str
     lastname: str
     phone: Optional[str] = None
-    birth_date: date
+    birthDate: date
     recentTopics: List[str] = []
     progress: Dict[str, int] = {}
     interests: List[str] = []   # ✅ default list so it's never missing
