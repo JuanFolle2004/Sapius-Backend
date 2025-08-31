@@ -158,12 +158,13 @@ def get_random_folder_with_games(current_user: User = Depends(get_current_user))
         raise HTTPException(status_code=400, detail="User has no interests defined")
 
     all_interest_games = []
+    played = set(current_user.playedGameIds or [])
 
+    # 🔎 Collect all games from user's interests
     for interest in current_user.interests:
         game_docs = (
             db.collection("games")
             .where("topic", "==", interest)
-            .limit(50)
             .stream()
         )
         for doc in game_docs:
@@ -171,37 +172,43 @@ def get_random_folder_with_games(current_user: User = Depends(get_current_user))
             game["id"] = doc.id
             all_interest_games.append(game)
 
-    if not all_interest_games:
-        chosen_interest = random.choice(current_user.interests)
-        # fallback: generate 2 games
-        from app.services.generation import generate_games_from_prompt
-        generated = generate_games_from_prompt(chosen_interest)
+    # 🧹 Exclude already played games
+    available = [g for g in all_interest_games if g["id"] not in played]
+    selected_games: list[dict] = []
 
-        for i, g in enumerate(generated):
-            game_id = str(uuid4())
-            main_topic = normalize_topic(g.get("topic"), fallback=chosen_interest)
-            raw_tag = g.get("topic") or chosen_interest
-            tags = [raw_tag] if raw_tag else []
+    # 🎯 Case 1: Not enough fresh games → top up with AI
+    if len(available) < 3:
+        random.shuffle(available)
+        selected_games.extend(available[:3])
 
-            game_data = {
-                "id": game_id,
-                "order": i + 1,
-                "title": g["question"][:30],
-                "question": g["question"],
-                "options": g["options"],
-                "correctAnswer": g["correctAnswer"],
-                "explanation": g["explanation"],
-                "createdAt": datetime.utcnow().isoformat(),
-                "createdBy": current_user.id,
-                "folderId": None,  # virtual folder
-                "topic": main_topic,
-                "tags": tags
-            }
-            db.collection("games").document(game_id).set(game_data)
-            all_interest_games.append(game_data)
+        needed = 3 - len(selected_games)
+        if needed > 0:
+            chosen_interest = random.choice(current_user.interests)
+            generated = generate_games_from_prompt(chosen_interest, count=needed)
 
-    selected_games = random.sample(all_interest_games, min(10, len(all_interest_games)))
+            for i, g in enumerate(generated):
+                game_id = str(uuid4())
+                game_data = {
+                    "id": game_id,
+                    "order": i + 1,
+                    "title": g["question"][:30],
+                    "question": g["question"],
+                    "options": g["options"],
+                    "correctAnswer": g["correctAnswer"],
+                    "explanation": g["explanation"],
+                    "createdAt": datetime.utcnow().isoformat(),
+                    "createdBy": "system",
+                    "folderId": "random",
+                    "topic": g.get("topic", chosen_interest),
+                    "tags": [g.get("topic", chosen_interest)]
+                }
+                db.collection("games").document(game_id).set(game_data)
+                selected_games.append(game_data)
+    else:
+        random.shuffle(available)
+        selected_games = available[:3]
 
+    # 📦 Virtual folder
     folder_data = {
         "id": "random",
         "title": "🎲 Random Quiz",
@@ -209,7 +216,26 @@ def get_random_folder_with_games(current_user: User = Depends(get_current_user))
         "prompt": None,
         "createdBy": "system",
         "createdAt": datetime.utcnow().isoformat(),
-        "gameIds": [g["id"] for g in selected_games],
+        "gameIds": [],
     }
 
-    return {"folder": folder_data, "games": selected_games}
+    # ✅ Clone games into Firestore with `folderId="random"`
+    cloned_games = []
+    for g in selected_games:
+        cloned_id = str(uuid4())
+        clone = {
+            **g,
+            "id": cloned_id,
+            "createdBy": "system",
+            "folderId": "random",
+            "createdAt": datetime.utcnow().isoformat(),
+        }
+        db.collection("games").document(cloned_id).set(clone)
+        cloned_games.append(clone)
+        folder_data["gameIds"].append(cloned_id)
+
+    return {"folder": folder_data, "games": cloned_games}
+
+
+
+

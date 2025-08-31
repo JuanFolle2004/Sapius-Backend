@@ -12,6 +12,6 @@ class Game(BaseModel):
     explanation: str
     createdAt: datetime
     createdBy: str
-    folderId: Optional[str] = None
-    topic: Optional[str] = None   # 👈 make optional
-    tags: List[str] = Field(default_factory=list)  
+    folderId: Optional[str] = None   # ✅ can now be "random" for trivia
+    topic: Optional[str] = None      # ✅ keep optional for safety
+    tags: List[str] = Field(default_factory=list)
