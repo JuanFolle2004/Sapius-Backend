@@ -1,13 +1,17 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
 from app.routes.user_routes import router as user_router
 from app.routes.folder_routes import router as folder_router
-from app.firebase.firebase_config import db
 from app.routes.game_routes import router as game_router
 from app.routes.folder_with_games import router as folder_with_games_router
 from app.routes.ai_routes import router as ai_router
 from app.routes.dashboard_routes import router as dashboard_router
+from app.firebase.firebase_config import db
+
 from dotenv import load_dotenv
 import logging
 import sys
@@ -15,10 +19,7 @@ import sys
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
-
 load_dotenv()
-
 
 app = FastAPI()
 
@@ -31,7 +32,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
+# ---------------------------
+# GLOBAL VALIDATION HANDLER
+# ---------------------------
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for err in exc.errors():
+        field = err["loc"][-1]
+        message = err["msg"]
+        errors.append({"field": field, "message": message})
+    return JSONResponse(status_code=422, content={"errors": errors})
+
+
+# ---------------------------
+# ROUTES
+# ---------------------------
 app.include_router(user_router)
 app.include_router(folder_router)
 app.include_router(game_router)
@@ -39,7 +55,10 @@ app.include_router(folder_with_games_router)
 app.include_router(ai_router)
 app.include_router(dashboard_router)
 
-# Test endpoints
+
+# ---------------------------
+# TEST ENDPOINTS
+# ---------------------------
 @app.get("/")
 def root():
     return {"message": "DuoAI backend is running!"}
@@ -48,7 +67,10 @@ def root():
 def test_firebase():
     return {"collections": [col.id for col in db.collections()]}
 
-# Swagger UI customization for Bearer token in headers
+
+# ---------------------------
+# SWAGGER UI CUSTOMIZATION
+# ---------------------------
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
