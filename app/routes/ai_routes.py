@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from app.models.user_model import User
 from app.utils.auth import get_current_user
 from app.firebase.firebase_config import db
@@ -13,7 +13,7 @@ import json
 import random
 
 from app.services.generation import generate_games_from_prompt
-from app.services.normalization import normalize_topic   
+from app.services.normalization import normalize_topic
 from app.models.game import Game
 
 # Load .env and OpenAI key
@@ -22,25 +22,48 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
+# -------------------------------
+# Duration → Question count mapping
+# -------------------------------
+DURATION_TO_COUNT = {
+    5: 3,
+    10: 6,
+    15: 8
+}
 
+def questions_from_duration(duration: int) -> int:
+    if duration not in DURATION_TO_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail="Duration must be 5, 10, or 15 minutes."
+        )
+    return DURATION_TO_COUNT[duration]
+
+# -------------------------------
+# Request model for game generation
+# -------------------------------
 class GenerationRequest(BaseModel):
     prompt: str
     folderId: str
-    count: int = 3
-
+    duration: int   # must be 5, 10, or 15
 
 # -------------------------------
 # Generate new games from prompt
 # -------------------------------
-def generate_games(data: GenerationRequest, current_user: User = Depends(get_current_user)):
+def generate_games(
+    data: GenerationRequest,
+    current_user: User = Depends(get_current_user)
+):
+    num_questions = questions_from_duration(data.duration)
+
     system_prompt = (
-        f"You are a quiz generator. Given a topic, generate {data.count} quiz games in JSON format. "
+        f"You are a quiz generator. Given a topic, generate {num_questions} quiz games in JSON format. "
         "Each game must include:\n"
         "- question: string\n"
         "- options: array of 4 strings\n"
         "- correctAnswer: one of the options\n"
         "- explanation: string\n"
-        "- topic: string (the category of the question, e.g. 'history', 'math', 'geography')\n\n"
+        "- topic: string (e.g. 'history', 'math', 'geography')\n\n"
         "Respond only with a JSON array of objects."
     )
 
@@ -59,7 +82,10 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
         try:
             games = json.loads(raw)
         except json.JSONDecodeError:
-            raise HTTPException(status_code=500, detail="AI response could not be parsed as JSON.")
+            raise HTTPException(
+                status_code=500,
+                detail="AI response could not be parsed as JSON."
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OpenAI error: {str(e)}")
 
@@ -67,7 +93,7 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
     for i, game in enumerate(games):
         game_id = str(uuid4())
 
-        # ✅ normalize + tags
+        # normalize + tags
         main_topic = normalize_topic(game.get("topic"), fallback=data.prompt)
         raw_tag = game.get("topic") or data.prompt
         tags = [raw_tag] if raw_tag else []
@@ -96,12 +122,15 @@ def generate_games(data: GenerationRequest, current_user: User = Depends(get_cur
 
     return {"games": saved_games}
 
-
 # -------------------------------
 # Generate from existing folder
 # -------------------------------
 @router.post("/generate-from-folder/{folder_id}", response_model=list[Game])
-def generate_from_existing_folder(folder_id: str, user: User = Depends(get_current_user)):
+def generate_from_existing_folder(
+    folder_id: str,
+    duration: int = Body(5, embed=True),  # default = 5 → 3 questions
+    user: User = Depends(get_current_user)
+):
     folder_ref = db.collection("folders").document(folder_id).get()
     if not folder_ref.exists:
         raise HTTPException(status_code=404, detail="Folder not found")
@@ -111,8 +140,10 @@ def generate_from_existing_folder(folder_id: str, user: User = Depends(get_curre
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     prompt = folder.get("prompt", "General knowledge")
+    num_questions = questions_from_duration(duration)
+
     try:
-        generated = generate_games_from_prompt(prompt)
+        generated = generate_games_from_prompt(prompt, count=num_questions)
     except Exception as e:
         raise HTTPException(status_code=500, detail="GPT call failed")
 
@@ -147,95 +178,3 @@ def generate_from_existing_folder(folder_id: str, user: User = Depends(get_curre
         saved_games.append(game_data)
 
     return saved_games
-
-
-# -------------------------------
-# Random folder with games
-# -------------------------------
-@router.get("/folders/random/with-games")
-def get_random_folder_with_games(current_user: User = Depends(get_current_user)):
-    if not current_user.interests or len(current_user.interests) == 0:
-        raise HTTPException(status_code=400, detail="User has no interests defined")
-
-    all_interest_games = []
-    played = set(current_user.playedGameIds or [])
-
-    # 🔎 Collect all games from user's interests
-    for interest in current_user.interests:
-        game_docs = (
-            db.collection("games")
-            .where("topic", "==", interest)
-            .stream()
-        )
-        for doc in game_docs:
-            game = doc.to_dict()
-            game["id"] = doc.id
-            all_interest_games.append(game)
-
-    # 🧹 Exclude already played games
-    available = [g for g in all_interest_games if g["id"] not in played]
-    selected_games: list[dict] = []
-
-    # 🎯 Case 1: Not enough fresh games → top up with AI
-    if len(available) < 3:
-        random.shuffle(available)
-        selected_games.extend(available[:3])
-
-        needed = 3 - len(selected_games)
-        if needed > 0:
-            chosen_interest = random.choice(current_user.interests)
-            generated = generate_games_from_prompt(chosen_interest, count=needed)
-
-            for i, g in enumerate(generated):
-                game_id = str(uuid4())
-                game_data = {
-                    "id": game_id,
-                    "order": i + 1,
-                    "title": g["question"][:30],
-                    "question": g["question"],
-                    "options": g["options"],
-                    "correctAnswer": g["correctAnswer"],
-                    "explanation": g["explanation"],
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "createdBy": "system",
-                    "folderId": "random",
-                    "topic": g.get("topic", chosen_interest),
-                    "tags": [g.get("topic", chosen_interest)]
-                }
-                db.collection("games").document(game_id).set(game_data)
-                selected_games.append(game_data)
-    else:
-        random.shuffle(available)
-        selected_games = available[:3]
-
-    # 📦 Virtual folder
-    folder_data = {
-        "id": "random",
-        "title": "🎲 Random Quiz",
-        "description": "Random questions from your topics of interest",
-        "prompt": None,
-        "createdBy": "system",
-        "createdAt": datetime.utcnow().isoformat(),
-        "gameIds": [],
-    }
-
-    # ✅ Clone games into Firestore with `folderId="random"`
-    cloned_games = []
-    for g in selected_games:
-        cloned_id = str(uuid4())
-        clone = {
-            **g,
-            "id": cloned_id,
-            "createdBy": "system",
-            "folderId": "random",
-            "createdAt": datetime.utcnow().isoformat(),
-        }
-        db.collection("games").document(cloned_id).set(clone)
-        cloned_games.append(clone)
-        folder_data["gameIds"].append(cloned_id)
-
-    return {"folder": folder_data, "games": cloned_games}
-
-
-
-

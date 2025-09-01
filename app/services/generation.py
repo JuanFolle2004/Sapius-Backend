@@ -1,81 +1,50 @@
 import os
 import json
+import openai
 from dotenv import load_dotenv
-from openai import OpenAI
-from openai.types.chat import ChatCompletionMessageParam
 
-import re
-from typing import List, Dict
+# Load environment variables
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Load .env manually (adjust path as needed)
-env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-load_dotenv(dotenv_path=env_path)
-
-print("🔐 OPENAI KEY LOADED:", os.getenv("OPENAI_API_KEY"))
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def generate_games_from_prompt(prompt: str, count: int = 3):
+    """
+    Generate quiz games using OpenAI GPT.
+    Returns a list of game objects parsed from JSON.
+    """
+
     system_prompt = (
-        f"You are a helpful assistant that generates educational quiz questions based on a topic.\n"
-        f"Generate {count} multiple choice questions (MCQ) about: {prompt}.\n"
-        f"Each question must have 4 options, one correct answer, and a short explanation.\n"
-        f"Respond in valid JSON list format, like:\n"
-        f"[{{'question': '...', 'options': ['A', 'B', 'C', 'D'], 'correctAnswer': '...', 'explanation': '...'}}, ...]"
+        f"You are a quiz generator. Given a topic, generate {count} quiz games in JSON format. "
+        "Each game must include:\n"
+        "- question: string\n"
+        "- options: array of 4 strings\n"
+        "- correctAnswer: one of the options\n"
+        "- explanation: string\n"
+        "- topic: string (e.g. 'history', 'math', 'geography')\n\n"
+        "Respond only with a JSON array of objects."
     )
 
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "Please generate the questions now."}
-        ],
-        temperature=0.9,
-        max_tokens=1000,
-    )
+    user_prompt = f"Topic: {prompt}"
 
-    raw_text = response.choices[0].message.content
-    print("📡 GPT raw response:", raw_text)
-
-    return parse_questions_from_text(raw_text)  # Make sure this function handles stringified JSON
-
-
-def parse_questions_from_text(text: str) -> List[Dict]:
-    """
-    Parse a GPT-generated JSON string or pseudo-JSON list of games.
-    Expected structure:
-    [
-        {
-            "question": "...",
-            "options": ["A", "B", "C", "D"],
-            "correctAnswer": "...",
-            "explanation": "..."
-        },
-        ...
-    ]
-    """
     try:
-        # Try parsing as is
-        return json.loads(text)
-    except json.JSONDecodeError:
-        print("⚠️ Initial parse failed — trying to sanitize JSON...")
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+        )
 
-        # Attempt to fix common JSON formatting issues
-        # Replace single quotes with double quotes
-        sanitized = text.replace("‘", '"').replace("’", '"').replace("“", '"').replace("”", '"')
-        sanitized = re.sub(r"(?<!\\)\'", '"', sanitized)
-
-        # Ensure keys have quotes
-        sanitized = re.sub(r'([{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1 "\2":', sanitized)
-
-        # Remove trailing commas (which are invalid in JSON)
-        sanitized = re.sub(r",\s*}", "}", sanitized)
-        sanitized = re.sub(r",\s*]", "]", sanitized)
+        raw = response.choices[0].message["content"].strip()
 
         try:
-            return json.loads(sanitized)
-        except Exception as e:
-            print("❌ Could not parse GPT output:", e)
-            print("🔴 Raw sanitized text:\n", sanitized)
-            raise ValueError("Failed to parse GPT-generated questions.")
+            games = json.loads(raw)
+        except json.JSONDecodeError:
+            raise ValueError("OpenAI response could not be parsed as JSON.")
 
+        return games
+
+    except Exception as e:
+        raise RuntimeError(f"OpenAI error: {str(e)}")

@@ -11,5 +11,5 @@ class User(BaseModel):
     birthDate: date
     recentTopics: List[str] = []
     progress: Dict[str, int] = {}
-    interests: List[str] = []         # ✅ default list
-    playedGameIds: List[str] = []     # ✅ NEW field
+    interests: List[str] = []        # user-defined interests
+    playedGameIds: List[str] = []    # track already played games
