@@ -10,8 +10,8 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def generate_games_from_prompt(prompt: str, count: int = 3):
     """
-    Generate quiz games using OpenAI GPT.
-    Returns a list of game objects parsed from JSON.
+    Ask GPT to generate quiz games.
+    Returns a list of dicts with raw fields from GPT (no ids, no metadata).
     """
 
     system_prompt = (
@@ -29,7 +29,7 @@ def generate_games_from_prompt(prompt: str, count: int = 3):
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -38,13 +38,21 @@ def generate_games_from_prompt(prompt: str, count: int = 3):
         )
 
         raw = response.choices[0].message["content"].strip()
+        print("🔎 RAW GPT OUTPUT (first 500 chars):", raw[:500])
 
-        try:
-            games = json.loads(raw)
-        except json.JSONDecodeError:
-            raise ValueError("OpenAI response could not be parsed as JSON.")
+        # Clean code fences
+        if "```" in raw:
+            raw = raw.split("```")
+            raw = next((part for part in raw if "{" in part or "[" in part), "").strip()
+            raw = raw.replace("json", "").strip()
 
-        return games
+        games_json = json.loads(raw)
+
+        if not isinstance(games_json, list):
+            raise ValueError("Expected a JSON array of games")
+
+        return games_json
 
     except Exception as e:
+        print("❌ GPT generation error:", str(e))
         raise RuntimeError(f"OpenAI error: {str(e)}")
