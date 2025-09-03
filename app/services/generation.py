@@ -10,19 +10,22 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def generate_games_from_prompt(prompt: str, count: int = 3):
     """
-    Ask GPT to generate quiz games.
-    Returns a list of dicts with raw fields from GPT (no ids, no metadata).
+    Generate quiz games from a topic using OpenAI.
+    Ensures: valid topic, appropriate content, confident response.
+    Returns a list of dicts (question, options, correctAnswer, explanation, topic).
     """
 
     system_prompt = (
-        f"You are a quiz generator. Given a topic, generate {count} quiz games in JSON format. "
-        "Each game must include:\n"
-        "- question: string\n"
-        "- options: array of 4 strings\n"
-        "- correctAnswer: one of the options\n"
-        "- explanation: string\n"
-        "- topic: string (e.g. 'history', 'math', 'geography')\n\n"
-        "Respond only with a JSON array of objects."
+        "You are a quiz generator. "
+        "If the topic is inappropriate (violence, hate, sex, politics, etc.) "
+        "or if you are not confident you understand it, respond with: {\"status\":\"UNSUITABLE\"}. "
+        f"Otherwise, generate {count} quiz games in a pure JSON array. "
+        "Each object must have exactly:\n"
+        "question (string),\n"
+        "options (array of 4 strings),\n"
+        "correctAnswer (one of the options),\n"
+        "explanation (string),\n"
+        "topic (string like 'history','math','geography')."
     )
 
     user_prompt = f"Topic: {prompt}"
@@ -34,11 +37,15 @@ def generate_games_from_prompt(prompt: str, count: int = 3):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.7,
+            temperature=0.3,   # lower = more reliable JSON
         )
 
         raw = response.choices[0].message["content"].strip()
-        print("🔎 RAW GPT OUTPUT (first 500 chars):", raw[:500])
+        print("🔎 RAW GPT OUTPUT (first 300 chars):", raw[:300])
+
+        # Handle refusal
+        if raw.startswith("{") and "\"status\":\"UNSUITABLE\"" in raw:
+            raise ValueError("❌ Topic unsuitable or AI not confident.")
 
         # Clean code fences
         if "```" in raw:

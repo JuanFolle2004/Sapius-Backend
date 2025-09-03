@@ -10,21 +10,6 @@ from typing import List
 
 router = APIRouter(prefix="/games", tags=["Games"])
 
-@router.post("/{game_id}/mark-played")
-def mark_game_played(game_id: str, current_user: User = Depends(get_current_user)):
-    user_ref = db.collection("users").document(current_user.id)
-    user_doc = user_ref.get()
-
-    if not user_doc.exists:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # ✅ Append gameId to playedGameIds
-    user_ref.update({
-        "playedGameIds": firestore.ArrayUnion([game_id])
-    })
-
-    return {"message": f"Game {game_id} marked as played"}
-
 
 @router.get("/{game_id}", response_model=Game)
 def get_game_by_id(game_id: str, user: User = Depends(get_current_user)):
@@ -55,3 +40,29 @@ def get_game_by_id(game_id: str, user: User = Depends(get_current_user)):
     except Exception as e:
         print("❌ Error in get_game_by_id:", e)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+@router.post("/{game_id}/report")
+def report_game_issue(game_id: str, payload: dict, current_user: dict = Depends(get_current_user)):
+        """
+        Report an issue with a game (wrong answer, no correct option, etc.).
+        Saves report in Firestore under 'reports'.
+        """
+        folder_id = payload.get("folderId")
+        if not folder_id:
+            raise HTTPException(status_code=400, detail="Missing folderId")
+
+        report_id = str(uuid4())
+        report_data = {
+            "id": report_id,
+            "gameId": game_id,
+            "folderId": folder_id,
+            "userId": current_user["id"],
+            "question": payload.get("question"),
+            "selectedAnswer": payload.get("selectedAnswer"),
+            "correctAnswer": payload.get("correctAnswer"),
+            "createdAt": datetime.utcnow().isoformat(),
+        }
+
+        db.collection("reports").document(report_id).set(report_data)
+
+        return {"status": "ok", "reportId": report_id}

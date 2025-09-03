@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 
-
 from app.services.generation import generate_games_from_prompt
 from app.services.normalization import normalize_topic
 from app.models.game import Game
@@ -40,6 +39,7 @@ def questions_from_duration(duration: int) -> int:
 def generate_from_existing_folder(
     folder_id: str,
     duration: int = Body(5, embed=True),
+    difficulty: str = Body("same", embed=True),  # 👈 new parameter
     user: User = Depends(get_current_user)
 ):
     folder_ref = db.collection("folders").document(folder_id).get()
@@ -52,6 +52,13 @@ def generate_from_existing_folder(
 
     prompt = folder.get("prompt", "General knowledge")
     num_questions = questions_from_duration(duration)
+
+    # 🔹 Adjust prompt depending on difficulty
+    if difficulty == "easier":
+        prompt += " (make the questions easier, suitable for beginners)"
+    elif difficulty == "harder":
+        prompt += " (make the questions more challenging, advanced vocabulary and harder questions)"
+    # "same" → no change
 
     try:
         raw_games = generate_games_from_prompt(prompt, count=num_questions)
@@ -92,6 +99,7 @@ def generate_from_existing_folder(
             "folderId": folder_id,
             "topic": main_topic,
             "tags": tags,
+            "difficulty": difficulty,  # 👈 store difficulty info
         }
 
         db.collection("games").document(game_id).set(game_data)
