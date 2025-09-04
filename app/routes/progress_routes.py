@@ -35,10 +35,7 @@ def mark_game_progress(
     lastPlayedAt = data.get("lastPlayedAt")
     if lastPlayedAt:
         last = datetime.fromisoformat(lastPlayedAt).date()
-        if (today - last).days == 1:
-            data["strike"] = data.get("strike", 0) + 1
-        elif (today - last).days > 1:
-            data["strike"] = 1
+        data["strike"] = data.get("strike", 0) + 1 if (today - last).days == 1 else 1
     else:
         data["strike"] = 1
 
